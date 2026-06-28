@@ -25,6 +25,14 @@
 (define-constant ERR-OWNER-ONLY (err u100))
 (define-constant ERR-PAUSED (err u101))
 (define-constant ERR-NOT-FOUND (err u102))
+(define-constant ERR-INVALID-AMOUNT (err u103))
+
+;; ---------- PAYMENTS ----------
+
+(define-constant SLAP-FEE u5000)
+(define-constant PUNCH-FEE u9000)
+
+(define-constant HOSPITAL-FUND u2500000)
 
 ;; ---------- USER STATS ----------
 
@@ -32,7 +40,7 @@
     principal
     {
         slaps: uint,
-        punches: uint
+        punches: uint,
     }
 )
 
@@ -43,7 +51,7 @@
     {
         user: principal,
         action: uint,
-        block: uint
+        block: uint,
     }
 )
 
@@ -52,22 +60,17 @@
 ;; =========================================================
 
 (define-private (assert-not-paused)
-    (if
-        (var-get paused)
+    (if (var-get paused)
         ERR-PAUSED
         (ok true)
     )
 )
 
 (define-private (get-user (user principal))
-
-    (default-to
-
-        {
-            slaps: u0,
-            punches: u0
-        }
-
+    (default-to {
+        slaps: u0,
+        punches: u0,
+    }
         (map-get? user-stats user)
     )
 )
@@ -79,34 +82,24 @@
 ;; ---------- SLAP ----------
 
 (define-public (slap)
-
     (begin
-
         (try! (assert-not-paused))
+        (try! (stx-transfer? SLAP-FEE tx-sender (var-get owner)))
 
-        (let
-            (
+        (let (
                 (stats (get-user tx-sender))
                 (next-id (+ (var-get activity-id) u1))
             )
-
             ;; Update User
 
-            (map-set
-                user-stats
-                tx-sender
-                {
-                    slaps: (+ (get slaps stats) u1),
-                    punches: (get punches stats)
-                }
-            )
+            (map-set user-stats tx-sender {
+                slaps: (+ (get slaps stats) u1),
+                punches: (get punches stats),
+            })
 
             ;; Update Global
 
-            (var-set
-                global-slaps
-                (+ (var-get global-slaps) u1)
-            )
+            (var-set global-slaps (+ (var-get global-slaps) u1))
 
             ;; Activity Counter
 
@@ -114,15 +107,11 @@
 
             ;; Save Activity
 
-            (map-set
-                activities
-                next-id
-                {
-                    user: tx-sender,
-                    action: u1,
-                    block: stacks-block-height
-                }
-            )
+            (map-set activities next-id {
+                user: tx-sender,
+                action: u1,
+                block: stacks-block-height,
+            })
 
             (ok true)
         )
@@ -132,34 +121,24 @@
 ;; ---------- PUNCH ----------
 
 (define-public (punch)
-
     (begin
-
         (try! (assert-not-paused))
+        (try! (stx-transfer? PUNCH-FEE tx-sender (var-get owner)))
 
-        (let
-            (
+        (let (
                 (stats (get-user tx-sender))
                 (next-id (+ (var-get activity-id) u1))
             )
-
             ;; Update User
 
-            (map-set
-                user-stats
-                tx-sender
-                {
-                    slaps: (get slaps stats),
-                    punches: (+ (get punches stats) u1)
-                }
-            )
+            (map-set user-stats tx-sender {
+                slaps: (get slaps stats),
+                punches: (+ (get punches stats) u1),
+            })
 
             ;; Update Global
 
-            (var-set
-                global-punches
-                (+ (var-get global-punches) u1)
-            )
+            (var-set global-punches (+ (var-get global-punches) u1))
 
             ;; Activity Counter
 
@@ -167,31 +146,68 @@
 
             ;; Save Activity
 
-            (map-set
-                activities
-                next-id
-                {
-                    user: tx-sender,
-                    action: u2,
-                    block: stacks-block-height
-                }
-            )
+            (map-set activities next-id {
+                user: tx-sender,
+                action: u2,
+                block: stacks-block-height,
+            })
+
+            (ok true)
+        )
+    )
+)
+  
+;; ---------- PATCH ME UP ----------
+
+(define-public (patchmeup (amount uint))
+    (begin
+        (try! (assert-not-paused))
+
+        (asserts! (> amount u0) ERR-INVALID-AMOUNT)
+
+        (try! (stx-transfer? amount tx-sender (var-get owner)))
+
+        (let ((next-id (+ (var-get activity-id) u1)))
+            (var-set activity-id next-id)
+
+            (map-set activities next-id {
+                user: tx-sender,
+                action: u3,
+                block: stacks-block-height,
+            })
 
             (ok true)
         )
     )
 )
 
+;; ---------- HOSPITAL FUND ----------
+
+(define-public (hospitalfund)
+    (begin
+        (try! (assert-not-paused))
+
+        (try! (stx-transfer? HOSPITAL-FUND tx-sender (var-get owner)))
+
+        (let ((next-id (+ (var-get activity-id) u1)))
+            (var-set activity-id next-id)
+
+            (map-set activities next-id {
+                user: tx-sender,
+                action: u4,
+                block: stacks-block-height,
+            })
+
+            (ok true)
+        )
+    )
+)
 
 ;; ---------------- OWNER ----------------
 
 (define-public (pause)
-
     (begin
-        (asserts!
-            (is-eq tx-sender (var-get owner))
-            ERR-OWNER-ONLY
-        )
+        (asserts! (is-eq tx-sender (var-get owner)) ERR-OWNER-ONLY)
 
         (var-set paused true)
 
@@ -200,12 +216,8 @@
 )
 
 (define-public (unpause)
-
     (begin
-        (asserts!
-            (is-eq tx-sender (var-get owner))
-            ERR-OWNER-ONLY
-        )
+        (asserts! (is-eq tx-sender (var-get owner)) ERR-OWNER-ONLY)
 
         (var-set paused false)
 
@@ -216,11 +228,10 @@
 ;; ---------------- READ ONLY ----------------
 
 (define-read-only (get-user-stats (user principal))
-    (default-to
-        {
-            slaps: u0,
-            punches: u0
-        }
+    (default-to {
+        slaps: u0,
+        punches: u0,
+    }
         (map-get? user-stats user)
     )
 )
@@ -228,7 +239,7 @@
 (define-read-only (get-global-stats)
     {
         slaps: (var-get global-slaps),
-        punches: (var-get global-punches)
+        punches: (var-get global-punches),
     }
 )
 
@@ -237,13 +248,8 @@
 )
 
 (define-read-only (get-activity (id uint))
-
-    (match
-        (map-get? activities id)
-
-        activity
-        (ok activity)
-
+    (match (map-get? activities id)
+        activity (ok activity)
         ERR-NOT-FOUND
     )
 )

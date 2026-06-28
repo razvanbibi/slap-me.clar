@@ -6,7 +6,7 @@ telemetry = false
 cache_dir = "./.cache"
 
 # [contracts.counter]
-# path = "contracts/counter.clar"
+# path = "contracts/slap-me.clar"
 # epoch = "latest"
 
 # Check-checker settings:

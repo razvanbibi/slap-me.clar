@@ -1,0 +1,17 @@
+id: 0
+name: Mainnet deployment
+network: mainnet
+stacks-node: https://api.hiro.so
+bitcoin-node: http://blockstack:blockstacksystem@bitcoin.blockstack.com:8332
+plan:
+  batches:
+  - id: 0
+    transactions:
+    - transaction-type: contract-publish
+      contract-name: slap-me
+      expected-sender: SPTR1GDYG6VGAQ8JGHSGHN8FPBSNWAGVY59MKM4J
+      cost: 5153230
+      path: contracts/slap-me.clar
+      anchor-block-only: true
+      clarity-version: 4
+    epoch: '3.3'
